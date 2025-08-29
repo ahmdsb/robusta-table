@@ -17,6 +17,8 @@ use Throwable;
 
 trait HasRobustaTable
 {
+    use HasSubTabs;
+
     public const TABLE_COLUMN_MANAGER_COLUMN_TYPE = 'column';
 
     protected function makeBaseTable(): Table
@@ -34,7 +36,7 @@ trait HasRobustaTable
 
     public function mountHasRobustaTable()
     {
-        //
+        $this->loadDefaultActiveSubTab();
     }
 
     public function updatingHasRobustaTable($name, $value)
@@ -116,7 +118,6 @@ trait HasRobustaTable
                         ...$additionalKeys,
                     ]);
                 } catch (Throwable $e) {
-                    dd($e);
 
                     return null;
                 }
@@ -153,6 +154,7 @@ trait HasRobustaTable
         return $schema
             ->components([
                 $this->getTabsContentComponent(),
+                $this->getSubTabsContentComponent(),
                 RenderHook::make(PanelsRenderHook::RESOURCE_PAGES_LIST_RECORDS_TABLE_BEFORE),
                 EmbeddedTable::make(),
                 RenderHook::make(PanelsRenderHook::RESOURCE_PAGES_LIST_RECORDS_TABLE_AFTER),
