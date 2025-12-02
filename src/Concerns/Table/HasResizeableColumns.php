@@ -28,7 +28,7 @@ trait HasResizeableColumns
 
     public function getTableKey(): string
     {
-        return "rbs_table_{$this->getPluralModelLabel()}_resizeable_columns";
+        return "rbs_table_{$this->getLivewire()->getName()}_resizeable_columns";
     }
 
     public function getDefaultResizeableColumnsConfig(): array
