@@ -38,7 +38,7 @@
             {{ $columnManagerTriggerAction }}
         </x-slot>
 
-        <div class="p-6 fi-ta-col-manager">
+        <div class="p-6 fi-ta-col-manager" >
             <div
                 x-load
                 x-load-src="{{ \Filament\Support\Facades\FilamentAsset::getAlpineComponentSrc('robusta-table-column-manager', 'evitenic/robusta-table') }}"

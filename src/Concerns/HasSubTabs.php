@@ -10,6 +10,11 @@ use Livewire\Attributes\Url;
 
 trait HasSubTabs
 {
+    public function mountHasSubTabs()
+    {
+        $this->loadDefaultActiveSubTab();
+    }
+
     #[Url(as: 'subTab')]
     public ?string $activeSubTab = null;
 

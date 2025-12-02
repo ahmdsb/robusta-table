@@ -1,5 +1,14 @@
 @import '../../vendor/filament/filament/resources/css/theme.css';
 
+@source '../js/**/*.js';
+@source '../views/**/*.blade.php';
+
+@layer components {
+    .fi-ta-ctn.fi-ta-ctn-with-footer.fi-ta-ctn-with-header {
+        overflow: visible;
+    }
+}
+
 /* Resized Column Styles */
 .column-resize-handle-bar {
     position: absolute;

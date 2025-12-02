@@ -2,14 +2,11 @@
 
 namespace Evitenic\RobustaTable;
 
-use Evitenic\RobustaTable\Commands\RobustaTableCommand;
 use Evitenic\RobustaTable\Testing\TestsRobustaTable;
 use Filament\Support\Assets\AlpineComponent;
 use Filament\Support\Assets\Asset;
 use Filament\Support\Assets\Css;
-use Filament\Support\Assets\Js;
 use Filament\Support\Facades\FilamentAsset;
-use Filament\Support\Facades\FilamentIcon;
 use Illuminate\Filesystem\Filesystem;
 use Illuminate\Support\Facades\Blade;
 use Livewire\Features\SupportTesting\Testable;
@@ -31,13 +28,9 @@ class RobustaTableServiceProvider extends PackageServiceProvider
          * More info: https://github.com/spatie/laravel-package-tools
          */
         $package->name(static::$name)
-            ->hasViews(static::$name)
-            ->hasCommands($this->getCommands())
             ->hasInstallCommand(function (InstallCommand $command) {
                 $command
                     ->publishConfigFile()
-                    ->publishMigrations()
-                    ->askToRunMigrations()
                     ->askToStarRepoOnGitHub('evitenic/robusta-table');
             });
 
@@ -45,10 +38,6 @@ class RobustaTableServiceProvider extends PackageServiceProvider
 
         if (file_exists($package->basePath("/../config/{$configFileName}.php"))) {
             $package->hasConfigFile();
-        }
-
-        if (file_exists($package->basePath('/../database/migrations'))) {
-            $package->hasMigrations($this->getMigrations());
         }
 
         if (file_exists($package->basePath('/../resources/lang'))) {
@@ -69,14 +58,6 @@ class RobustaTableServiceProvider extends PackageServiceProvider
             $this->getAssets(),
             $this->getAssetPackageName()
         );
-
-        FilamentAsset::registerScriptData(
-            $this->getScriptData(),
-            $this->getAssetPackageName()
-        );
-
-        // Icon Registration
-        FilamentIcon::register($this->getIcons());
 
         // Component Registration
         $this->registerComponents();
@@ -105,54 +86,10 @@ class RobustaTableServiceProvider extends PackageServiceProvider
     protected function getAssets(): array
     {
         return [
-            AlpineComponent::make('robusta-table', __DIR__.'/../resources/dist/robusta-table.js'),
-            AlpineComponent::make('robusta-table-column-manager', __DIR__.'/../resources/dist/robusta-table-column-manager.js'),
-            Css::make('robusta-table-styles', __DIR__.'/../resources/dist/robusta-table.css')->loadedOnRequest(),
-            // Js::make('robusta-table-scripts', __DIR__ . '/../resources/dist/robusta-table.js'),
-        ];
-    }
-
-    /**
-     * @return array<class-string>
-     */
-    protected function getCommands(): array
-    {
-        return [
-            RobustaTableCommand::class,
-        ];
-    }
-
-    /**
-     * @return array<string>
-     */
-    protected function getIcons(): array
-    {
-        return [];
-    }
-
-    /**
-     * @return array<string>
-     */
-    protected function getRoutes(): array
-    {
-        return [];
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    protected function getScriptData(): array
-    {
-        return [];
-    }
-
-    /**
-     * @return array<string>
-     */
-    protected function getMigrations(): array
-    {
-        return [
-            'create_robusta-table_table',
+            AlpineComponent::make('robusta-table', __DIR__.'/../resources/dist/components/robusta-table.js'),
+            AlpineComponent::make('robusta-table-column-manager', __DIR__.'/../resources/dist/components/robusta-table-column-manager.js'),
+            Css::make('robusta-table-styles', __DIR__.'/../resources/dist/robusta-table.css')
+                ->loadedOnRequest(),
         ];
     }
 
