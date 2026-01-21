@@ -175,7 +175,7 @@ trait HasRobustaTable
     {
         if ($this->getTable()->isPersistingReorderedColumns()) {
             $store = RobustaTableStore::getInstance()->db();
-            $key = KeysStore::OrderedColumns->value.'_';
+            $key = KeysStore::OrderedColumns->value . '_';
             $store->set(
                 $this->orderColumnKeyStore(),
                 $this->orderedColumns
@@ -186,7 +186,7 @@ trait HasRobustaTable
     public function initSessionToggledColumns(Store $store): void
     {
         if ($this->getTable()->isPersistingToggledColumns()) {
-            $toggledColumns = $store->get($this->toggleColumnKeyStore(), []);
+            $toggledColumns = $store->get($this->toggleColumnKeyStore(), $this->getDefaultTableColumnToggleState());
             $this->getTable()->getLivewire()->toggledTableColumns = $toggledColumns;
         } else {
             if (empty($this->tmpToggledColumns)) {
@@ -233,14 +233,14 @@ trait HasRobustaTable
 
     protected function toggleColumnKeyStore(): string
     {
-        $key = KeysStore::ToggleColumns->value.'_'.$this->getName();
+        $key = KeysStore::ToggleColumns->value . '_' . $this->getName();
 
         return $key;
     }
 
     protected function orderColumnKeyStore(): string
     {
-        $key = KeysStore::OrderedColumns->value.'_'.$this->getName();
+        $key = KeysStore::OrderedColumns->value . '_' . $this->getName();
 
         return $key;
     }
