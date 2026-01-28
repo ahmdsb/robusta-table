@@ -41,14 +41,14 @@ trait HasSubTabs
     {
         return $this->cachedSubTabs ??= collect($this->getSubTabs())
             ->map(
-                fn (Tab $tab, string|int $key): Tab => $tab->hasCustomLabel()
+                fn (Tab $tab, string | int $key): Tab => $tab->hasCustomLabel()
                     ? $tab
                     : $tab->label($this->generateTabLabel($key))
             )
             ->all();
     }
 
-    public function getDefaultActiveSubTab(): string|int|null
+    public function getDefaultActiveSubTab(): string | int | null
     {
         return array_key_first($this->getCachedSubTabs());
     }
@@ -62,7 +62,7 @@ trait HasSubTabs
         $this->applyTableColumnManager();
     }
 
-    protected function modifyQuerywithActiveTab(Builder $query): Builder
+    protected function modifyQuerywithActiveTab(Builder $query, bool $isResolvingRecord = false): Builder
     {
         if (blank(filled($this->activeSubTab))) {
             return $query;
@@ -74,7 +74,13 @@ trait HasSubTabs
             return $query;
         }
 
-        $tabQuery = $tabs[$this->activeTab]->modifyQuery($query);
+        $tab = $tabs[$this->activeTab];
+
+        if ($isResolvingRecord && $tab->shouldExcludeQueryWhenResolvingRecord()) {
+            $tabQuery = $query;
+        } else {
+            $tabQuery = $tab->modifyQuery($query);
+        }
 
         if (blank(filled($this->activeSubTab))) {
             return $tabQuery;
@@ -86,7 +92,15 @@ trait HasSubTabs
             return $tabQuery;
         }
 
-        return $subTabs[$this->activeSubTab]->modifyQuery($tabQuery);
+        $subTab = $subTabs[$this->activeSubTab];
+
+        if ($isResolvingRecord && $subTab->shouldExcludeQueryWhenResolvingRecord()) {
+            $subTabQuery = $tabQuery;
+        } else {
+            $subTabQuery = $subTab->modifyQuery($tabQuery);
+        }
+
+        return $subTabQuery;
     }
 
     public function getSubTabsContentComponent(): Component

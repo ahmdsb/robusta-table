@@ -14,7 +14,7 @@ class EmbeddedTable extends BaseComponent
         $livewire = $this->getLivewire();
 
         if (! ($livewire instanceof HasTable)) {
-            throw new Exception('The ['.$livewire::class.'] component must have a table defined.');
+            throw new Exception('The [' . $livewire::class . '] component must have a table defined.');
         }
 
         return view('robusta-table::components.embedded-table', [

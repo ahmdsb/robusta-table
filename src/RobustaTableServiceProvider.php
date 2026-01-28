@@ -64,7 +64,7 @@ class RobustaTableServiceProvider extends PackageServiceProvider
 
         // Handle Stubs
         if (app()->runningInConsole()) {
-            foreach (app(Filesystem::class)->files(__DIR__.'/../stubs/') as $file) {
+            foreach (app(Filesystem::class)->files(__DIR__ . '/../stubs/') as $file) {
                 $this->publishes([
                     $file->getRealPath() => base_path("stubs/robusta-table/{$file->getFilename()}"),
                 ], 'robusta-table-stubs');
@@ -86,9 +86,9 @@ class RobustaTableServiceProvider extends PackageServiceProvider
     protected function getAssets(): array
     {
         return [
-            AlpineComponent::make('robusta-table', __DIR__.'/../resources/dist/components/robusta-table.js'),
-            AlpineComponent::make('robusta-table-column-manager', __DIR__.'/../resources/dist/components/robusta-table-column-manager.js'),
-            Css::make('robusta-table-styles', __DIR__.'/../resources/dist/robusta-table.css')
+            AlpineComponent::make('robusta-table', __DIR__ . '/../resources/dist/components/robusta-table.js'),
+            AlpineComponent::make('robusta-table-column-manager', __DIR__ . '/../resources/dist/components/robusta-table-column-manager.js'),
+            Css::make('robusta-table-styles', __DIR__ . '/../resources/dist/robusta-table.css')
                 ->loadedOnRequest(),
         ];
     }
