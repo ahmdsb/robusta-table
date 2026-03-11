@@ -119,7 +119,7 @@
                                                 </span>
                                             </button>
 
-                                            <div x-show="!column.isToggleable" class="h-5 w-5"></div>
+                                            <div x-show="!column.isToggleable" class="w-5 h-5"></div>
                                         @endif
 
                                         <span x-text="column.label"></span>

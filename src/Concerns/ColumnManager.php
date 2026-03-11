@@ -2,8 +2,11 @@
 
 namespace Evitenic\RobustaTable\Concerns;
 
+use Evitenic\RobustaTable\Store\RobustaTableStore;
+use Filament\Support\Components\Component;
 use Filament\Support\Facades\FilamentView;
 use Filament\Tables\Columns\Column;
+use Filament\Tables\Columns\ColumnGroup;
 use Illuminate\View\View;
 use Livewire\Livewire;
 use Throwable;
@@ -14,21 +17,42 @@ trait ColumnManager
 
     public function bootedColumnManager()
     {
-        $this->setDefaultTableColumnState();
+        // $this->setDefaultTableColumnState();
         $this->registerLayoutViewToogleActionHook(config('robusta-table.position_manage_columns'));
     }
 
-    protected function setDefaultTableColumnState(): void
+    public function getDefaultTableColumnState(): array
     {
-        $this->tableColumns = collect($this->tableColumns)
-            ->map(function ($column) {
-                if ($column['isToggledHiddenByDefault']) {
-                    $column['isToggled'] = ! $column['isToggled'];
-                }
+        $default = function () {
+            return collect($this->getTable()->getColumnsLayout())
+                ->map(fn (Component $component): ?array => match (true) {
+                    $component instanceof ColumnGroup => $this->mapTableColumnGroupToArray($component),
+                    $component instanceof Column => $this->mapTableColumnToArray($component),
+                    default => null,
+                })
+                ->filter()
+                ->values()
+                ->all();
+        };
 
-                return $column;
-            })
-            ->toArray();
+        if ($this->getTable()->persistsColumnsInSession() || $this->getTable()->getPersistsTableColumns()) {
+            $store = RobustaTableStore::getInstance()->getStore();
+            $columns = $store->get($this->getName(), $default());
+        } elseif (! empty($this->tableColumns)) {
+            $columns = collect($this->tableColumns)
+                ->map(function ($column) {
+                    if ($column['isToggledHiddenByDefault']) {
+                        $column['isToggled'] = false;
+                    }
+
+                    return $column;
+                })
+                ->toArray();
+        } else {
+            $columns = $default();
+        }
+
+        return $this->cachedDefaultTableColumnState ??= $columns;
     }
 
     protected function registerLayoutViewToogleActionHook(string $filamentHook)
@@ -103,27 +127,15 @@ trait ColumnManager
         ];
     }
 
-    protected function hasReorderedTableColumns(): bool
+    protected function persistTableColumns(): void
     {
-        $table = md5($this::class);
-
-        $flattenedDefaultColumnState = session()->get(
-            "tables.{$table}_reordered_columns",
-            $this->flattenTableColumnStateItems($this->getDefaultTableColumnState())
-        );
-
-        $flattenedColumnState = $this->flattenTableColumnStateItems($this->tableColumns);
-
-        $matchingDefaultColumns = collect($flattenedDefaultColumnState)
-            ->filter(fn (string $key) => in_array($key, $flattenedColumnState))
-            ->values()
-            ->all();
-
-        session()->put(
-            "tables.{$table}_reordered_columns",
-            $flattenedColumnState
-        );
-
-        return $flattenedColumnState !== $matchingDefaultColumns;
+        if ($this->getTable()->persistsColumnsInSession() || $this->getTable()->getPersistsTableColumns()) {
+            $store = RobustaTableStore::getInstance()->getStore();
+            $store->set(
+                $this->getName(),
+                $this->tableColumns
+            );
+            debug($store->get($this->getName(), $this->tableColumns));
+        }
     }
 }

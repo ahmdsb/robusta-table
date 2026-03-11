@@ -1,9 +1,11 @@
-export default function robustaTableColumnManager({columns, isLive}){
+export default function robustaTableColumnManager({ columns, isLive }) {
     return {
         error: undefined,
         isLoading: false,
+        deferredColumns: [],
         columns,
         isLive,
+        hasReordered: false,
 
         init() {
             if (!this.columns || this.columns.length === 0) {
@@ -11,47 +13,54 @@ export default function robustaTableColumnManager({columns, isLive}){
 
                 return
             }
+
+            this.deferredColumns = JSON.parse(JSON.stringify(this.columns))
+
+            this.$watch('columns', () => {
+                this.resetDeferredColumns()
+            })
         },
 
         get groupedColumns() {
-            const groupedColumns = {};
+            const groupedColumns = {}
 
-            this.columns
-            .filter((column) => column.type === 'group')
-            .forEach((column) => {
-                groupedColumns[column.name] = this.calculateGroupedColumns(column);
-            });
+            this.deferredColumns
+                .filter((column) => column.type === 'group')
+                .forEach((column) => {
+                    groupedColumns[column.name] =
+                        this.calculateGroupedColumns(column)
+                })
 
-            return groupedColumns;
+            return groupedColumns
         },
 
-        calculateGroupedColumns(group){
-            const visibleChildren = group?.columns?.filter((column) => !column.isHidden && (column.isToggleable && column.isReorderable)) ?? [];
+        calculateGroupedColumns(group) {
+            const visibleChildren =
+                group?.columns?.filter((column) => !column.isHidden) ?? []
 
-            if(visibleChildren.length === 0){
+            if (visibleChildren.length === 0) {
                 return {
                     hidden: true,
                     checked: false,
                     disabled: false,
                     indeterminate: false,
-                };
+                }
             }
 
             const toggleableChildren = group.columns.filter(
                 (column) => !column.isHidden && column.isToggleable !== false,
-            );
+            )
 
-            if(toggleableChildren.length === 0){
-                return {checked: true, disabled: true, indeterminate: false};
+            if (toggleableChildren.length === 0) {
+                return { checked: true, disabled: true, indeterminate: false }
             }
 
             const toggledChildren = toggleableChildren.filter(
-                (column) => column.isToggled
-            ).length;
-
-            const nonToggleableChildren = group.column.filter(
-                (column) => !column.isHidden && column.isToggleable === false
-            );
+                (column) => column.isToggled,
+            ).length
+            const nonToggleableChildren = group.columns.filter(
+                (column) => !column.isHidden && column.isToggleable === false,
+            )
 
             if (toggledChildren === 0 && nonToggleableChildren.length > 0) {
                 return { checked: true, disabled: false, indeterminate: true }
@@ -68,32 +77,74 @@ export default function robustaTableColumnManager({columns, isLive}){
             return { checked: true, disabled: false, indeterminate: true }
         },
 
-        getColumn(name, groupName = null){
-            if(groupName){
-                return;
+        getColumn(name, groupName = null) {
+            if (groupName) {
+                const group = this.deferredColumns.find(
+                    (group) =>
+                        group.type === 'group' && group.name === groupName,
+                )
+
+                return group?.columns?.find((column) => column.name === name)
             }
 
-            return this.columns.find((column) => column.name === name);
+            return this.deferredColumns.find((column) => column.name === name)
         },
 
-        toggleColumn(name, groupName = null){
-            const column = this.getColumn(name, groupName);
+        toggleGroup(groupName) {
+            const group = this.deferredColumns.find(
+                (group) => group.type === 'group' && group.name === groupName,
+            )
 
-            if(!column || column.isToggleable === false){
-                return;
+            if (!group?.columns) {
+                return
             }
 
-            column.isToggled = !column.isToggled;
-            this.columns = [...this.columns];
+            const groupedColumns = this.calculateGroupedColumns(group)
 
-            if(this.isLive){
-                this.applyTableColumnManager();
-            };
+            if (groupedColumns.disabled) {
+                return
+            }
+
+            const toggleableChildren = group.columns.filter(
+                (column) => column.isToggleable !== false,
+            )
+            const anyChildOn = toggleableChildren.some(
+                (column) => column.isToggled,
+            )
+            const newValue = groupedColumns.indeterminate ? true : !anyChildOn
+
+            group.columns
+                .filter((column) => column.isToggleable !== false)
+                .forEach((column) => {
+                    column.isToggled = newValue
+                })
+
+            this.deferredColumns = [...this.deferredColumns]
+
+            if (this.isLive) {
+                this.applyTableColumnManager()
+            }
         },
 
-        reorderColumns(sortedIds){
-            const newOrder = sortedIds.map((id) => id.split('::'));
-            this.reorderTopLevel(newOrder);
+        toggleColumn(name, groupName = null) {
+            const column = this.getColumn(name, groupName)
+
+            if (!column || column.isToggleable === false) {
+                return
+            }
+
+            column.isToggled = !column.isToggled
+            this.deferredColumns = [...this.deferredColumns]
+
+            if (this.isLive) {
+                this.applyTableColumnManager()
+            }
+        },
+
+        reorderColumns(sortedIds) {
+            const newOrder = sortedIds.map((id) => id.split('::'))
+            this.reorderTopLevel(newOrder)
+            this.hasReordered = true
 
             if (this.isLive) {
                 this.applyTableColumnManager()
@@ -101,7 +152,7 @@ export default function robustaTableColumnManager({columns, isLive}){
         },
 
         reorderGroupColumns(sortedIds, groupName) {
-            const group = this.columns.find(
+            const group = this.deferredColumns.find(
                 (column) =>
                     column.type === 'group' && column.name === groupName,
             )
@@ -124,66 +175,58 @@ export default function robustaTableColumnManager({columns, isLive}){
             })
 
             group.columns = reordered
-            this.columns = [...this.columns]
+            this.deferredColumns = [...this.deferredColumns]
+            this.hasReordered = true
 
             if (this.isLive) {
                 this.applyTableColumnManager()
             }
         },
 
-        reorderTopLevel(newOrder){
-            const cloned = this.columns;
-            const reordered = [];
-            // Keep track of which newOrder items we’ve already placed
-            const placed = new Set();
+        reorderTopLevel(newOrder) {
+            const cloned = this.deferredColumns
+            const notReorderables = this.deferredColumns.filter(
+                (column) => column.isReorderable === false,
+            )
+            const reordered = []
 
-            cloned.forEach((column) => {
-                // Check if this column exists in newOrder
-                const orderItem = newOrder.find(([type, name]) => {
+            newOrder.forEach(([type, name]) => {
+                const item = cloned.find((column) => {
                     if (type === 'group') {
-                        return column.type === 'group' && column.name === name;
+                        return column.type === 'group' && column.name === name
                     } else if (type === 'column') {
-                        return column.type !== 'group' && column.name === name;
+                        return column.type !== 'group' && column.name === name
                     }
-                    return false;
-                });
+                    return false
+                })
 
-                if (orderItem) {
-                    // Find its index in newOrder
-                    const index = newOrder.indexOf(orderItem);
-
-                    // If not already placed, insert all pending newOrder items up to this one
-                    for (let i = 0; i <= index; i++) {
-                        if (!placed.has(i)) {
-                            const [type, name] = newOrder[i];
-                            const item = cloned.find(column => {
-                                if (type === 'group') {
-                                    return column.type === 'group' && column.name === name;
-                                } else {
-                                    return column.type !== 'group' && column.name === name;
-                                }
-                            });
-
-                            if (item) {
-                                reordered.push(item);
-                                placed.add(i);
-                            }
-                        }
-                    }
-                } else {
-                    // Column not in newOrder → just keep it in place
-                    reordered.push(column);
+                if (item) {
+                    reordered.push(item)
                 }
-            });
-            this.columns = reordered;
+            })
+
+            // Insert non-reorderable columns at their original indices
+            notReorderables.forEach((notReorderable) => {
+                const originalIndex = cloned.indexOf(notReorderable)
+                reordered.splice(originalIndex, 0, notReorderable)
+            })
+
+            this.deferredColumns = reordered
         },
 
         async applyTableColumnManager() {
-            this.isLoading = true;
+            this.isLoading = true
 
             try {
-                await this.$wire.call('applyTableColumnManager', this.columns)
+                this.columns = JSON.parse(JSON.stringify(this.deferredColumns))
 
+                await this.$wire.call(
+                    'applyTableColumnManager',
+                    this.columns,
+                    this.hasReordered,
+                )
+
+                this.hasReordered = false
                 this.error = undefined
             } catch (error) {
                 this.error = 'Failed to update column visibility'
@@ -193,6 +236,9 @@ export default function robustaTableColumnManager({columns, isLive}){
                 this.isLoading = false
             }
         },
-
-    };
+        resetDeferredColumns() {
+            this.deferredColumns = JSON.parse(JSON.stringify(this.columns))
+            this.hasReordered = false
+        },
+    }
 }
