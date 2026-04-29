@@ -10,6 +10,7 @@ use Filament\Support\Facades\FilamentView;
 use Filament\Tables\Actions\Action;
 use Filament\Tables\Table;
 use Illuminate\Contracts\View\View;
+use Livewire\Component;
 use Livewire\Livewire;
 
 trait HasRobustaTable
@@ -91,7 +92,7 @@ trait HasRobustaTable
             function () use ($action, $componentClass): ?View {
 
                 /**
-                 * @var \Livewire\Component $currentComponent Current Livewire page component instance.
+                 * @var Component $currentComponent Current Livewire page component instance.
                  */
                 $currentComponent = Livewire::current();
 

@@ -7,7 +7,6 @@ export default function (el, props) {
 
     if (!enable) return;
 
-    let currentWidth = 0
     const tableSelector = '.fi-ta-table';
     const tableWrapperContentSelector = '.fi-ta-content';
     const tableBodyCellPrefix = 'fi-table-cell-';
@@ -18,25 +17,52 @@ export default function (el, props) {
     let excludeColumns = el.querySelectorAll(`[${excludeColumnSelector}]`);
 
     let table = el.querySelector(tableSelector);
-    let tableWrapper = el.querySelector(tableWrapperContentSelector);
+    let totalTableWidth = 0;
+
+    // Inject a <style> tag into <head> so column widths are defined via CSS rules.
+    // Morphdom only patches the component's DOM subtree — it never touches <head> —
+    // so these rules survive every Livewire update without flickering.
+    const styleId = `robusta-resize-${tableKey}`;
+    const styleEl = document.getElementById(styleId) ?? (() => {
+        const s = document.createElement('style');
+        s.id = styleId;
+        document.head.appendChild(s);
+        return s;
+    })();
+    const columnWidthMap = new Map();
 
     init();
-    Livewire.hook("element.init", () => {
+
+    let morphDebounceTimer = null;
+
+    const cleanupElementInit = Livewire.hook("element.init", () => {
         if (isInitialized) return;
         init();
-    })
+    });
 
-    Livewire.hook("morph.updated", () => {
-        isInitialized = false;
-    })
+    // Re-init after morph to attach handle bars to any new/replaced header cells
+    // and to capture widths for columns added by pagination or filter changes.
+    const cleanupMorphUpdated = Livewire.hook("morph.updated", () => {
+        clearTimeout(morphDebounceTimer);
+        morphDebounceTimer = setTimeout(() => {
+            isInitialized = false;
+            init();
+        }, 50);
+    });
+
+    el.addEventListener('alpine:destroy', () => {
+        cleanupElementInit();
+        cleanupMorphUpdated();
+        clearTimeout(morphDebounceTimer);
+        styleEl.remove();
+    }, { once: true });
 
 
     function init() {
         table = el.querySelector(tableSelector);
-        tableWrapper = el.querySelector(tableWrapperContentSelector);
         columns = el.querySelectorAll(`[${columnSelector}]`);
         excludeColumns = el.querySelectorAll(`[${excludeColumnSelector}]`);
-        initializeColumnLayout()
+        initializeColumnLayout();
         isInitialized = true;
     }
 
@@ -75,9 +101,8 @@ export default function (el, props) {
             applyLayout(column, getColumnName(column, columnSelector), true);
         });
 
-        if (table && totalWidth) {
-            table.style.maxWidth = `${totalWidth}px`;
-        }
+        totalTableWidth = totalWidth;
+        renderStyleSheet();
     }
 
 
@@ -114,17 +139,17 @@ export default function (el, props) {
         event.preventDefault();
         event.stopPropagation();
 
-        if (event) {
-            event.target.classList.add("active");
-        }
+        event.target.classList.add("active");
 
         const startX = event.pageX;
         const originalColumnWidth = Math.round(column.offsetWidth);
-        const originalTableWidth = Math.round(table.offsetWidth);
-        const originalWrapperWidth = Math.round(tableWrapper.offsetWidth);
+
+        let currentWidth = originalColumnWidth;
+        let hasDragged = false;
 
         const onMouseMove = throttle((moveEvent) => {
             if (moveEvent.pageX === startX) return;
+            hasDragged = true;
             const delta = moveEvent.pageX - startX;
 
             currentWidth = Math.round(
@@ -134,18 +159,15 @@ export default function (el, props) {
                 )
             );
 
-            const newTableWidth = originalTableWidth - originalColumnWidth + currentWidth;
-            table.style.width = newTableWidth > originalWrapperWidth
-                ? `${newTableWidth}px`
-                : "auto";
-
             applyColumnWidth(currentWidth, column);
         }, 16);
 
         const onMouseUp = () => {
-            if (event) event.target.classList.remove("active");
+            event.target.classList.remove("active");
 
-            handleColumnUpdate(currentWidth, getColumnName(column));
+            if (hasDragged) {
+                handleColumnUpdate(currentWidth, getColumnName(column));
+            }
 
             document.removeEventListener("mousemove", onMouseMove);
             document.removeEventListener("mouseup", onMouseUp);
@@ -161,19 +183,27 @@ export default function (el, props) {
     }
 
     function applyColumnWidth(width, column) {
-        setColumnStyles(column, width);
-        const columnName = getColumnName(column);
-        const cellSelector = `.${escapeCssClass(tableBodyCellPrefix + columnName)}`;
-        table.querySelectorAll(cellSelector).forEach(cell => {
-            setColumnStyles(cell, width);
-            cell.style.overflow = "hidden";
-        });
+        const colAttr = column.hasAttribute(columnSelector) ? columnSelector : excludeColumnSelector;
+        const columnName = column.getAttribute(colAttr);
+        if (!columnName) return;
+        columnWidthMap.set(columnName, { width, colAttr });
+        renderStyleSheet();
     }
 
-    function setColumnStyles(el, width) {
-        el.style.width = width ? `${width}px` : 'auto';
-        el.style.minWidth = width ? `${width}px` : 'auto';
-        el.style.maxWidth = width ? `${width}px` : 'auto';
+    function renderStyleSheet() {
+        let css = '';
+        if (totalTableWidth > 0) {
+            css += `[data-robusta-table="${tableKey}"] .fi-ta-table { max-width: ${totalTableWidth}px !important; }\n`;
+        }
+        columnWidthMap.forEach(({ width: w, colAttr }, name) => {
+            const cellClass = escapeCssClass(`${tableBodyCellPrefix}${name}`);
+            css += `[${colAttr}="${name}"], .${cellClass} {`
+                + ` width: ${w}px !important;`
+                + ` min-width: ${w}px !important;`
+                + ` max-width: ${w}px !important; }\n`;
+            css += `.${cellClass} { overflow: hidden !important; }\n`;
+        });
+        styleEl.textContent = css;
     }
 
     function escapeCssClass(className) {
