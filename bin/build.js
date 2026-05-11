@@ -25,6 +25,7 @@ const defaultOptions = {
     treeShaking: true,
     target: ['es2020'],
     minify: !isDev,
+    outdir: './resources/js/dist',
     plugins: [{
         name: 'watchPlugin',
         setup: function (build) {
@@ -45,6 +46,8 @@ const defaultOptions = {
 
 compile({
     ...defaultOptions,
-    entryPoints: ['./resources/js/index.js'],
-    outfile: './resources/dist/robusta-table.js',
+    entryPoints: [
+        './resources/js/robusta-table.js',
+        './resources/js/robusta-table-column-manager.js',
+    ],
 })
