@@ -2,7 +2,7 @@ export default function filamentRobustaTable({ resizedConfig }) {
     const SELECTORS = {
         wrapper: '.fi-ta-content',
         table: '.fi-ta-table',
-        headerCell: '.fi-ta-header-cell-',
+        headerCell: '.fi-table-header-cell-',
         cell: '.fi-table-cell-',
         resizeHandle: 'column-resize-handle-bar',
         emptyHeaderCell: 'th.fi-ta-actions-cell, th.fi-ta-cell.fi-ta-selection-cell',
