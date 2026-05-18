@@ -11,6 +11,8 @@ export default function robustaTableColumnManager({
         fixed,
         isLoading,
         sortable: null,
+        unwatchLoading: null,
+
 
         init() {
             this.sortable = Sortable.create(this.$refs.sortable, {
@@ -40,7 +42,7 @@ export default function robustaTableColumnManager({
                 },
             });
 
-            this.$watch("isLoading", (value) => {
+            this.unwatchLoading = this.$watch("isLoading", (value) => {
                 this.sortable.option('disabled', !!value);
             })
 
@@ -48,7 +50,9 @@ export default function robustaTableColumnManager({
         },
 
         destroy() {
+            this.unwatchLoading?.();
             this.sortable?.destroy();
+            this.sortable = null;
         }
     };
 }
