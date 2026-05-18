@@ -1,3 +1,5 @@
+import { destroy } from "filepond";
+
 export default function filamentRobustaTable({ resizedConfig }) {
     const SELECTORS = {
         wrapper: '.fi-ta-content',
@@ -36,8 +38,11 @@ export default function filamentRobustaTable({ resizedConfig }) {
             fitContentWidth: 0,
             currentResizeWidth: 0,
         },
+        livewireHookCleanup: null,
+        abortController: null,
 
         init() {
+            this.abortController = new AbortController();
             this.element = this.$el;
 
             // initial setup
@@ -47,7 +52,7 @@ export default function filamentRobustaTable({ resizedConfig }) {
         },
 
         registerLivewireHooks(){
-            Livewire.hook('morph.updated', ({ el }) => {
+            this.livewireHookCleanup = Livewire.hook('morph.updated', ({ el }) => {
                 if (!this.element?.contains(el)) return;
 
                 if (this.state.pendingUpdate) return;
@@ -158,7 +163,7 @@ export default function filamentRobustaTable({ resizedConfig }) {
         },
 
         mountResizeHandle(column, columnName) {
-            if (column.querySelector(`.${SELECTORS.reziseHandle}`)) return;
+            if (column.querySelector(`.${SELECTORS.resizeHandle}`)) return;
 
             const handle = document.createElement('button');
 
@@ -168,11 +173,11 @@ export default function filamentRobustaTable({ resizedConfig }) {
 
             handle.addEventListener('mousedown', (event) => {
                 this.handleResizeStart(event, column, columnName);
-            });
+            }, { signal: this.abortController.signal });
 
             handle.addEventListener('dblclick', (event) => {
                 this.handleDoubleClick(event, column, columnName);
-            });
+            }, { signal: this.abortController.signal });
 
             column.appendChild(handle);
         },
@@ -333,6 +338,22 @@ export default function filamentRobustaTable({ resizedConfig }) {
         
         getColumnName(column, selector = SELECTORS.column) {
             return column.getAttribute(selector);
+        },
+
+        // ---- Cleanup ----
+        destroy() {
+            this.livewireHookCleanup?.();
+            this.livewireHookCleanup = null;
+
+            this.abortController?.abort();
+            this.abortController = null;
+
+            this.columns = null;
+            this.excludedColumns = null;
+            this.refs.table = null;
+            this.refs.wrapper = null;
+            this.refs.content = null;
+            this.element = null;
         }
     };
 } 
