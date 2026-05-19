@@ -1,5 +1,3 @@
-import { destroy } from "filepond";
-
 export default function filamentRobustaTable({ resizedConfig }) {
     const SELECTORS = {
         wrapper: '.fi-ta-content',
@@ -231,8 +229,8 @@ export default function filamentRobustaTable({ resizedConfig }) {
                 document.removeEventListener('mouseup', onMouseUp)
             }
 
-            document.addEventListener('mousemove', onMouseMove)
-            document.addEventListener('mouseup', onMouseUp)
+            document.addEventListener('mousemove', onMouseMove, { signal: this.abortController.signal })
+            document.addEventListener('mouseup', onMouseUp, { signal: this.abortController.signal })
         },
 
         handleDoubleClick(event, column, columnName) {
