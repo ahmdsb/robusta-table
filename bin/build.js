@@ -70,5 +70,5 @@ compile({
         './resources/js/components/robusta-table.js',
         './resources/js/components/robusta-table-column-manager.js',
     ],
-    outdir: './resources/dist/components',
+    outdir: './resources/js/dist/components',
 })

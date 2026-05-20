@@ -6,6 +6,7 @@ export default function robustaTableColumnManager({ columns, isLive }) {
         columns,
         isLive,
         hasReordered: false,
+        unwatchColumns: null,
 
         init() {
             if (!this.columns || this.columns.length === 0) {
@@ -16,7 +17,7 @@ export default function robustaTableColumnManager({ columns, isLive }) {
 
             this.deferredColumns = JSON.parse(JSON.stringify(this.columns))
 
-            this.$watch('columns', () => {
+            this.unwatchColumns = this.$watch('columns', () => {
                 this.resetDeferredColumns()
             })
         },
@@ -239,6 +240,10 @@ export default function robustaTableColumnManager({ columns, isLive }) {
         resetDeferredColumns() {
             this.deferredColumns = JSON.parse(JSON.stringify(this.columns))
             this.hasReordered = false
+        },
+
+        destroy() {
+            this.unwatchColumns?.()
         },
     }
 }

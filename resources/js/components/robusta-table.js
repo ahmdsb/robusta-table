@@ -37,7 +37,11 @@ export default function filamentRobustaTable({ columns, resizedConfig }) {
             currentResizeWidth: 0,
         },
 
+        livewireHookCleanup: null,
+        abortController: null,
+
         init() {
+            this.abortController = new AbortController()
             this.element = this.$el
 
             // Initial setup
@@ -48,23 +52,29 @@ export default function filamentRobustaTable({ columns, resizedConfig }) {
         },
 
         registerLivewireHooks() {
-            Livewire.hook('morph.updated', ({ el }) => {
-                if (!this.element?.contains(el)) return
-                if (this.state.pendingUpdate) return
+            this.livewireHookCleanup = Livewire.hook(
+                'morph.updated',
+                ({ el }) => {
+                    if (!this.element?.contains(el)) return
+                    if (this.state.pendingUpdate) return
 
-                this.state.pendingUpdate = true
+                    this.state.pendingUpdate = true
 
-                // Wait for DOM paint to finish
-                requestAnimationFrame(() => {
-                    if (this.element && document.body.contains(this.element)) {
-                        this.state.initialized = false
-                        this.state.totalWidth = 0
-                        this.initializeComponent()
-                    }
+                    // Wait for DOM paint to finish
+                    requestAnimationFrame(() => {
+                        if (
+                            this.element &&
+                            document.body.contains(this.element)
+                        ) {
+                            this.state.initialized = false
+                            this.state.totalWidth = 0
+                            this.initializeComponent()
+                        }
 
-                    this.state.pendingUpdate = false
-                })
-            })
+                        this.state.pendingUpdate = false
+                    })
+                },
+            )
         },
 
         initializeComponent() {
@@ -187,11 +197,19 @@ export default function filamentRobustaTable({ columns, resizedConfig }) {
             handle.className = SELECTORS.resizeHandle // defined in CSS
             handle.title = 'Resize column'
 
-            handle.addEventListener('mousedown', (e) =>
-                this.handleResizeStart(e, headerEl, columnName),
+            handle.addEventListener(
+                'mousedown',
+                (e) => {
+                    this.handleResizeStart(e, headerEl, columnName)
+                },
+                { signal: this.abortController.signal },
             )
-            handle.addEventListener('dblclick', (e) =>
-                this.handleDoubleClick(e, headerEl, columnName),
+            handle.addEventListener(
+                'dblclick',
+                (e) => {
+                    this.handleDoubleClick(e, headerEl, columnName)
+                },
+                { signal: this.abortController.signal },
             )
 
             headerEl.appendChild(handle)
@@ -247,8 +265,12 @@ export default function filamentRobustaTable({ columns, resizedConfig }) {
                 document.removeEventListener('mouseup', onMouseUp)
             }
 
-            document.addEventListener('mousemove', onMouseMove)
-            document.addEventListener('mouseup', onMouseUp)
+            document.addEventListener('mousemove', onMouseMove, {
+                signal: this.abortController.signal,
+            })
+            document.addEventListener('mouseup', onMouseUp, {
+                signal: this.abortController.signal,
+            })
         },
 
         handleDoubleClick(event, headerEl, columnName) {
@@ -365,6 +387,15 @@ export default function filamentRobustaTable({ columns, resizedConfig }) {
                     }, limit)
                 }
             }
+        },
+
+        // ---- Cleanup ----
+        destroy() {
+            this.livewireHookCleanup?.()
+            this.livewireHookCleanup = null
+
+            this.abortController?.abort()
+            this.abortController = null
         },
     }
 }
