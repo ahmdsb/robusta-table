@@ -187,7 +187,8 @@ export default function robustaTableColumnManager({ columns, isLive }) {
         reorderTopLevel(newOrder) {
             const cloned = this.deferredColumns
             const notReorderables = this.deferredColumns.filter(
-                (column) => column.isReorderable === false,
+                (column) =>
+                    column.isReorderable === false || column.isHidden === true,
             )
             const reordered = []
 
