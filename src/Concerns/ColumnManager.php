@@ -135,7 +135,6 @@ trait ColumnManager
                 $this->getName(),
                 $this->tableColumns
             );
-            debug($store->get($this->getName(), $this->tableColumns));
         }
     }
 }
