@@ -17,6 +17,7 @@ export default function filamentRobustaTable({ columns, resizedConfig }) {
             maxWidth: -1,
             enable: false,
             fitContent: false,
+            flexibleColumns: [],
             tableKey: null,
             ...resizedConfig,
         },
@@ -33,8 +34,6 @@ export default function filamentRobustaTable({ columns, resizedConfig }) {
             pendingUpdate: false,
             isLoading: false,
             totalWidth: 0,
-            fitContentWidth: 0,
-            currentResizeWidth: 0,
         },
 
         livewireHookCleanup: null,
@@ -87,11 +86,6 @@ export default function filamentRobustaTable({ columns, resizedConfig }) {
 
             if (!this.refs.table || !this.refs.content) return
 
-            // Calculate Fit Content (if enabled)
-            if (this.config.fitContent) {
-                this.calculateFitContentWidth()
-            }
-
             this.initializeColumns()
 
             this.state.initialized = true
@@ -100,39 +94,62 @@ export default function filamentRobustaTable({ columns, resizedConfig }) {
         calculateFitContentWidth() {
             if (!this.refs.wrapper) return
 
-            const resizeableCols = this.columns.filter(
-                (col) => col.isResized && !col.isHidden,
-            )
-            const fixedCols = this.columns.filter(
-                (col) => !col.isResized && !col.isHidden,
-            )
+            const visibleColumns = this.columns.filter((col) => !col.isHidden)
 
-            if (resizeableCols.length === 0) return
+            let wrapperWidth = this.refs.wrapper.clientWidth
 
-            let availableWidth = this.refs.wrapper.offsetWidth
-
-            // Subtract width of action columns/selection checkboxes
+            // subtract checkbox/action columns
             this.refs.table
                 .querySelectorAll(SELECTORS.emptyHeaderCell)
                 .forEach((el) => {
-                    availableWidth -= el.offsetWidth
+                    wrapperWidth -= el.offsetWidth
                 })
 
-            // Subtract width of non-resizable columns
-            fixedCols.forEach((col) => {
-                const selector =
-                    SELECTORS.headerCell + this.sanitizeName(col.name)
-                const el = this.refs.table.querySelector(selector)
-                if (el) availableWidth -= el.offsetWidth
+            let fixedWidth = 0
+            let flexibleColumns = []
+
+            visibleColumns.forEach((column) => {
+                const header = this.refs.table.querySelector(
+                    SELECTORS.headerCell + this.sanitizeName(column.name),
+                )
+
+                if (!header) return
+
+                if (this.isFlexibleColumn(column.name)) {
+                    flexibleColumns.push(column)
+                    return
+                }
+
+                const saved =
+                    this.getSavedWidth(column.name) ?? header.offsetWidth
+
+                fixedWidth += saved
             })
 
-            this.state.fitContentWidth = availableWidth / resizeableCols.length
+            const remaining = Math.max(
+                wrapperWidth - fixedWidth,
+                this.config.minWidth,
+            )
+
+            const flexWidth = remaining / Math.max(flexibleColumns.length, 1)
+
+            flexibleColumns.forEach((column) => {
+                this.saveColumnWidth(
+                    Math.round(flexWidth),
+                    column.name,
+                    `${column.name}_default`,
+                )
+            })
         },
 
         initializeColumns() {
             if (!this.config.enable || !this.columns.length) return
 
             this.state.totalWidth = 0
+
+            if (this.config.fitContent) {
+                this.calculateFitContentWidth()
+            }
 
             this.columns.forEach((column) => {
                 if (!column.isResized) return
@@ -166,27 +183,28 @@ export default function filamentRobustaTable({ columns, resizedConfig }) {
 
             // Determine Width priority: Saved > Default > FitContent/Existing
             const defaultKey = `${rawName}_default`
-            let width = this.getSavedWidth(rawName)
-            const defaultWidth = this.getSavedWidth(defaultKey)
 
-            if (!width && defaultWidth) {
-                width = defaultWidth
+            let width = this.getSavedWidth(rawName)
+
+            if (!width) {
+                width = this.getSavedWidth(defaultKey)
             }
 
             if (!width) {
                 width = this.config.fitContent
-                    ? this.state.fitContentWidth
-                    : this.getColumnConfig(rawName)?.width ??
-                      headerEl.offsetWidth
+                    ? this.getSavedWidth(defaultKey)
+                    : headerEl.offsetWidth
 
-                // If we are falling back to a calculated width, save it as default
-                if (width) this.saveColumnWidth(width, rawName, defaultKey)
+                if (!width) {
+                    width = headerEl.offsetWidth
+                }
+
+                this.saveColumnWidth(width, rawName, defaultKey)
             }
 
-            if (width) {
-                this.applyWidthToColumn(width, rawName)
-                this.state.totalWidth += width
-            }
+            this.applyWidthToColumn(width, rawName)
+
+            this.state.totalWidth += width
         },
 
         mountResizeHandle(headerEl, columnName) {
@@ -204,9 +222,15 @@ export default function filamentRobustaTable({ columns, resizedConfig }) {
                 },
                 { signal: this.abortController.signal },
             )
+
+            handle.dataset.column = columnName
+
             handle.addEventListener(
                 'dblclick',
                 (e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+
                     this.handleDoubleClick(e, headerEl, columnName)
                 },
                 { signal: this.abortController.signal },
@@ -225,11 +249,13 @@ export default function filamentRobustaTable({ columns, resizedConfig }) {
 
             headerEl.classList.add('resizing') //Visual feedback class
 
+            let currentResizeWidth = startWidth
+
             const onMouseMove = this.throttle((moveEvent) => {
                 const delta = moveEvent.pageX - startX
 
                 // Calculate new width with constraints
-                let newWidth = startWidth + delta - 16 // -16 buffer
+                let newWidth = startWidth + delta
                 const max =
                     this.config.maxWidth === -1
                         ? Infinity
@@ -239,26 +265,21 @@ export default function filamentRobustaTable({ columns, resizedConfig }) {
                     this.config.minWidth,
                     Math.min(max, newWidth),
                 )
-                this.state.currentResizeWidth = Math.round(newWidth)
+                currentResizeWidth = Math.round(newWidth)
 
                 // Update Table Width synchronously so it feels responsive
-                const widthDiff = this.state.currentResizeWidth - startWidth
-                this.refs.table.style.width = `${startTableWidth + widthDiff}px`
+                const widthDiff = currentResizeWidth - startWidth
+                this.state.totalWidth = startTableWidth + widthDiff
+                this.refs.table.style.width = `${this.state.totalWidth}px`
 
-                this.applyWidthToColumn(
-                    this.state.currentResizeWidth,
-                    columnName,
-                )
+                this.applyWidthToColumn(currentResizeWidth, columnName)
             }, 16)
 
             const onMouseUp = () => {
                 headerEl.classList.remove('resizing')
 
-                if (this.state.currentResizeWidth > 0) {
-                    this.saveColumnWidth(
-                        this.state.currentResizeWidth,
-                        columnName,
-                    )
+                if (currentResizeWidth > 0) {
+                    this.saveColumnWidth(currentResizeWidth, columnName)
                 }
 
                 document.removeEventListener('mousemove', onMouseMove)
@@ -277,14 +298,18 @@ export default function filamentRobustaTable({ columns, resizedConfig }) {
             event.preventDefault()
             event.stopPropagation()
 
-            const defaultKey = `${columnName}_default`
-            const resetWidth =
-                this.getSavedWidth(defaultKey) || this.config.minWidth
+            const defaultWidth = this.getSavedWidth(`${columnName}_default`)
 
-            if (resetWidth !== headerEl.offsetWidth) {
-                this.applyWidthToColumn(resetWidth, columnName)
-                this.saveColumnWidth(resetWidth, columnName)
-            }
+            if (!defaultWidth) return
+
+            const currentWidth = headerEl.offsetWidth
+            this.applyWidthToColumn(defaultWidth, columnName)
+
+            this.saveColumnWidth(defaultWidth, columnName)
+
+            this.state.totalWidth += defaultWidth - currentWidth
+
+            this.refs.table.style.width = `${this.state.totalWidth}px`
         },
 
         applyWidthToColumn(width, columnName) {
@@ -330,10 +355,7 @@ export default function filamentRobustaTable({ columns, resizedConfig }) {
             )
 
             // Frontend Save
-            sessionStorage.setItem(
-                this.getStorageKey(key),
-                validWidth.toString(),
-            )
+            localStorage.setItem(this.getStorageKey(key), validWidth.toString())
 
             // Internal state Update
             const colConfig = this.getColumnConfig(columnName)
@@ -341,7 +363,7 @@ export default function filamentRobustaTable({ columns, resizedConfig }) {
         },
 
         getSavedWidth(name) {
-            const val = sessionStorage.getItem(this.getStorageKey(name))
+            const val = localStorage.getItem(this.getStorageKey(name))
             return val ? parseInt(val, 10) : null
         },
 
@@ -353,6 +375,10 @@ export default function filamentRobustaTable({ columns, resizedConfig }) {
 
         getColumnConfig(name) {
             return this.columns.find((column) => column.name === name)
+        },
+
+        isFlexibleColumn(name) {
+            return this.config.flexibleColumns.includes(name)
         },
 
         sanitizeName(name) {
