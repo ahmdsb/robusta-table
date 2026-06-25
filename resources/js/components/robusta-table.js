@@ -45,11 +45,10 @@ export default function filamentRobustaTable({ columns, resizedConfig }) {
             this.abortController = new AbortController()
             this.element = this.$el
 
-            // Initial setup
-            this.initializeComponent()
-
             // Handle Livewire DOM updates
             this.registerLivewireHooks()
+
+            this.initializeComponent()
         },
 
         registerLivewireHooks() {
@@ -69,6 +68,7 @@ export default function filamentRobustaTable({ columns, resizedConfig }) {
                         ) {
                             this.state.initialized = false
                             this.state.totalWidth = 0
+
                             this.initializeComponent()
                         }
 
@@ -86,7 +86,12 @@ export default function filamentRobustaTable({ columns, resizedConfig }) {
             this.refs.table = this.element.querySelector(SELECTORS.table)
             this.refs.wrapper = this.element.querySelector(SELECTORS.wrapper)
 
-            if (!this.refs.table || !this.refs.content) return
+            if (!this.refs.table || !this.refs.content) {
+                return
+            }
+
+            // Force browser layout
+            this.refs.table.getBoundingClientRect()
 
             this.initializeColumns()
 
@@ -102,7 +107,8 @@ export default function filamentRobustaTable({ columns, resizedConfig }) {
                 (column) => !column.isHidden,
             )
 
-            let wrapperWidth = this.refs.wrapper.clientWidth
+            let wrapperWidth =
+                this.refs.table.parentElement.getBoundingClientRect().width
 
             // subtract selection/action columns
             this.refs.table
@@ -137,7 +143,7 @@ export default function filamentRobustaTable({ columns, resizedConfig }) {
                 baseWidths.forEach(({ column, baseWidth }) => {
                     const key = `${column.name}_default`
 
-                    this.saveColumnWidth(width, column.name, key)
+                    this.saveColumnWidth(baseWidth, column.name, key)
                 })
 
                 return
@@ -237,12 +243,8 @@ export default function filamentRobustaTable({ columns, resizedConfig }) {
 
             if (!width) {
                 width = this.config.fitContent
-                    ? this.getSavedWidth(defaultKey)
-                    : headerEl.offsetWidth
-
-                if (!width) {
-                    width = headerEl.offsetWidth
-                }
+                    ? this.getColumnBaseWidth(this.getColumnConfig(rawName))
+                    : headerEl.getBoundingClientRect().width
 
                 this.saveColumnWidth(width, rawName, defaultKey)
             }
