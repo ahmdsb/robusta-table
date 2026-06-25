@@ -19,6 +19,8 @@ export default function filamentRobustaTable({ columns, resizedConfig }) {
             fitContent: false,
             flexibleColumns: [],
             tableKey: null,
+            averageCharacterWidth: 8,
+            headerPadding: 32,
             ...resizedConfig,
         },
 
@@ -92,54 +94,98 @@ export default function filamentRobustaTable({ columns, resizedConfig }) {
         },
 
         calculateFitContentWidth() {
-            if (!this.refs.wrapper) return
+            if (!this.refs.wrapper) {
+                return
+            }
 
-            const visibleColumns = this.columns.filter((col) => !col.isHidden)
+            const visibleColumns = this.columns.filter(
+                (column) => !column.isHidden,
+            )
 
             let wrapperWidth = this.refs.wrapper.clientWidth
 
-            // subtract checkbox/action columns
+            // subtract selection/action columns
             this.refs.table
                 .querySelectorAll(SELECTORS.emptyHeaderCell)
                 .forEach((el) => {
                     wrapperWidth -= el.offsetWidth
                 })
 
-            let fixedWidth = 0
-            let flexibleColumns = []
+            const baseWidths = []
+            const flexible = []
+
+            let totalBaseWidth = 0
 
             visibleColumns.forEach((column) => {
-                const header = this.refs.table.querySelector(
-                    SELECTORS.headerCell + this.sanitizeName(column.name),
-                )
+                const baseWidth = this.getColumnBaseWidth(column)
 
-                if (!header) return
+                baseWidths.push({
+                    column,
+                    baseWidth,
+                })
+
+                totalBaseWidth += baseWidth
 
                 if (this.isFlexibleColumn(column.name)) {
-                    flexibleColumns.push(column)
-                    return
+                    flexible.push(column.name)
                 }
-
-                const saved =
-                    this.getSavedWidth(column.name) ?? header.offsetWidth
-
-                fixedWidth += saved
             })
 
-            const remaining = Math.max(
-                wrapperWidth - fixedWidth,
-                this.config.minWidth,
-            )
+            if (wrapperWidth <= totalBaseWidth) {
+                // Wrapper smaller than natural width
 
-            const flexWidth = remaining / Math.max(flexibleColumns.length, 1)
+                baseWidths.forEach(({ column, baseWidth }) => {
+                    const key = `${column.name}_default`
 
-            flexibleColumns.forEach((column) => {
-                this.saveColumnWidth(
-                    Math.round(flexWidth),
-                    column.name,
-                    `${column.name}_default`,
-                )
-            })
+                    this.saveColumnWidth(width, column.name, key)
+                })
+
+                return
+            }
+
+            const extraWidth = wrapperWidth - totalBaseWidth
+
+            if (flexible.length) {
+                // ---------- FLEXIBLE MODE ----------
+
+                const flexibleBase = baseWidths
+                    .filter((item) => flexible.includes(item.column.name))
+                    .reduce((sum, item) => sum + item.baseWidth, 0)
+
+                baseWidths.forEach((item) => {
+                    let width = item.baseWidth
+
+                    if (flexible.includes(item.column.name)) {
+                        width += extraWidth * (item.baseWidth / flexibleBase)
+                    }
+
+                    const key = `${item.column.name}_default`
+
+                    this.saveColumnWidth(
+                        Math.round(width),
+                        item.column.name,
+                        key,
+                    )
+                })
+            } else {
+                // ---------- AUTO EXPAND MODE ----------
+
+                baseWidths.forEach((item) => {
+                    const width =
+                        item.baseWidth +
+                        extraWidth * (item.baseWidth / totalBaseWidth)
+
+                    const key = `${item.column.name}_default`
+
+                    if (!this.getSavedWidth(key)) {
+                        this.saveColumnWidth(
+                            Math.round(width),
+                            item.column.name,
+                            key,
+                        )
+                    }
+                })
+            }
         },
 
         initializeColumns() {
@@ -184,11 +230,10 @@ export default function filamentRobustaTable({ columns, resizedConfig }) {
             // Determine Width priority: Saved > Default > FitContent/Existing
             const defaultKey = `${rawName}_default`
 
-            let width = this.getSavedWidth(rawName)
+            const savedWidth = this.getSavedWidth(rawName)
+            const defaultWidth = this.getSavedWidth(defaultKey)
 
-            if (!width) {
-                width = this.getSavedWidth(defaultKey)
-            }
+            let width = savedWidth ?? defaultWidth
 
             if (!width) {
                 width = this.config.fitContent
@@ -345,10 +390,16 @@ export default function filamentRobustaTable({ columns, resizedConfig }) {
 
         // ---- Persistence ----
 
-        saveColumnWidth(width, columnName, customKey = null) {
+        saveColumnWidth(width, columnName, customKey = null, overwrite = true) {
             const key = customKey || columnName
+
+            if (!overwrite && localStorage.getItem(this.getStorageKey(key))) {
+                return
+            }
+
             const max =
                 this.config.maxWidth === -1 ? Infinity : this.config.maxWidth
+
             const validWidth = Math.max(
                 this.config.minWidth,
                 Math.min(max, width),
@@ -379,6 +430,33 @@ export default function filamentRobustaTable({ columns, resizedConfig }) {
 
         isFlexibleColumn(name) {
             return this.config.flexibleColumns.includes(name)
+        },
+
+        getColumnBaseWidth(column) {
+            const header = this.refs.table.querySelector(
+                SELECTORS.headerCell + this.sanitizeName(column.name),
+            )
+
+            if (!header) {
+                return this.config.minWidth
+            }
+
+            // Remove resize handle
+            const clone = header.cloneNode(true)
+
+            clone
+                .querySelectorAll(`.${SELECTORS.resizeHandle}`)
+                .forEach((el) => el.remove())
+
+            const text = clone.textContent.replace(/\s+/g, ' ').trim()
+
+            const width = Math.max(
+                this.config.minWidth,
+                text.length * this.config.averageCharacterWidth +
+                    this.config.headerPadding,
+            )
+
+            return width
         },
 
         sanitizeName(name) {
