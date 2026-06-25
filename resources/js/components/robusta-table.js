@@ -6,8 +6,7 @@ export default function filamentRobustaTable({ columns, resizedConfig }) {
         headerCell: '.fi-ta-header-cell-',
         cell: '.fi-ta-cell-',
         resizeHandle: 'column-resize-handle-bar',
-        emptyHeaderCell:
-            'th.fi-ta-actions-header-cell, th.fi-ta-cell.fi-ta-selection-cell',
+        emptyHeaderCell: 'th.fi-ta-actions-header-cell',
     }
 
     return {
@@ -86,12 +85,7 @@ export default function filamentRobustaTable({ columns, resizedConfig }) {
             this.refs.table = this.element.querySelector(SELECTORS.table)
             this.refs.wrapper = this.element.querySelector(SELECTORS.wrapper)
 
-            if (!this.refs.table || !this.refs.content) {
-                return
-            }
-
-            // Force browser layout
-            this.refs.table.getBoundingClientRect()
+            if (!this.refs.table || !this.refs.content) return
 
             this.initializeColumns()
 
@@ -243,8 +237,12 @@ export default function filamentRobustaTable({ columns, resizedConfig }) {
 
             if (!width) {
                 width = this.config.fitContent
-                    ? this.getColumnBaseWidth(this.getColumnConfig(rawName))
-                    : headerEl.getBoundingClientRect().width
+                    ? this.getSavedWidth(defaultKey)
+                    : headerEl.offsetWidth
+
+                if (!width) {
+                    width = headerEl.offsetWidth
+                }
 
                 this.saveColumnWidth(width, rawName, defaultKey)
             }
