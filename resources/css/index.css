@@ -1,6 +1,8 @@
-@import '../../vendor/filament/filament/resources/css/theme.css';
+@import "tailwindcss";
 
+@source '../../src/**/*.php';
 @source '../js/**/*.js';
+@source "../**/*.blade.php";
 @source '../views/**/*.blade.php';
 
 @layer components {
